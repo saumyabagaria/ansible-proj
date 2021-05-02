@@ -1,0 +1,138 @@
+ansible-vault create sensitive.yaml
+cat sensitive.yaml
+---
+- hosts:linux
+  vars:
+    x:45
+  vars_prompt:
+    - name: user_name
+      prompt:Enter the username
+      private:no
+  tasks:
+  - name: Create sensitive text
+    copy:
+      content:"This file contain sensitive information"
+      dest:/home/ansible/sensitive.txt
+  - debug:
+    msg: "The username is {{user_name}}"
+ansible-vault encrypt sensitive.yaml
+
+linux
+cat /etc/passwd
+
+2)vi molecule/default/molecule.yml
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: centos7
+    image: "percygrunwald/docker-centos7-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    privileged: true
+    pre_build_image: true
+  - name: ubuntu1804
+    image: "percygrunwald/docker-ubuntu1804-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    privileged: true
+    pre_build_image: true
+  - name: debian9
+    image: "percygrunwald/docker-debian9-ansible:latest"
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    privileged: true
+    pre_build_image: true
+provisioner:
+  name: ansible
+verifier:
+  name: testinfra
+
+---
+- hosts: linux
+  become: yes
+  tasks:
+  - name: Install apache on Centos
+    yum:
+      name: httpd
+      update_cache: yes
+      state: latest
+    when: ansible_os_family == "RedHat"
+  - name: Install apache on ubuntu
+    apt:
+      name: apache2
+      update_cache: yes
+      state: latest
+    when: ansible_os_family == "Debian"
+
+  - name: Start apache on centos
+    service:
+      name: httpd
+      enabled: yes
+      state: started
+    when: ansible_os_family == "RedHat"
+  - name: Start apache on ubuntu
+    service:
+      name: apache2
+      enabled: yes
+      state: started
+    when: ansible_os_family == "Debian"
+  cat molecule/default/tests/test_default.py
+"""Role testing files using testinfra."""
+def test_hosts_file(host):
+    """Validate /etc/hosts file."""
+    f = host.file("/etc/hosts")
+    assert f.exists
+    assert f.user == "root"
+    assert f.group == "root"
+def test_apache_installed(host):
+    apache_package_name = _get_apache_package_name(host.system_info.distribution)
+    apache_package = host.package(apache_package_name)
+    assert apache_package.is_installed
+def test_apache_service_started_enabled(host):
+    apache_service_name = _get_apache_package_name(host.system_info.distribution)
+    apache_service = host.service(apache_service_name)
+    assert apache_service.is_running
+    assert apache_service.is_enabled
+def _get_apache_package_name(host_distro):
+    return {
+        "ubuntu": "apache2",
+        "debian": "apache2",
+        "centos": "httpd"
+    }.get(host_distro, "apache")
+
+---
+- hosts: win
+  tasks:
+  - name: Install Notepadplusplus
+    win_chocolatey:
+      name: notepadplusplus.install
+      state: absent
+ cat molecule/default/tests/test_default.py
+"""Role testing files using testinfra."""
+def test_hosts_file(host):
+    """Validate /etc/hosts file."""
+    f = host.file("/etc/hosts")
+    assert f.exists
+    assert f.user == "root"
+    assert f.group == "root"
+def test_apache_installed(host):
+    apache_package_name = _get_apache_package_name(host.system_info.distribution)
+    apache_package = host.package(apache_package_name)
+    assert apache_package.is_installed
+def test_apache_service_started_enabled(host):
+    apache_service_name = _get_apache_package_name(host.system_info.distribution)
+    apache_service = host.service(apache_service_name)
+    assert apache_service.is_running
+    assert apache_service.is_enabled
+def _get_apache_package_name(host_distro):
+    return {
+         "ubuntu": "apache2",
+        "debian": "apache2",
+        "centos": "httpd"
+    }.get(host_distro, "apache")
